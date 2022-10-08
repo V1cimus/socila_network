@@ -31,18 +31,9 @@ class PostsURLTests(TestCase):
         cls.url_post_edit = f'/posts/{PostsURLTests.post.pk}/edit/'
         cls.url_post_create = '/create/'
         cls.unexisting_page = '/unexisting_page/'
-        cls.templates_url_names = (
-            cls.url_index,
-            cls.url_group_list,
-            cls.url_profile,
-            cls.url_posts,
-        )
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
 
     def setUp(self):
+        cache.clear()
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(PostsURLTests.user)
@@ -52,7 +43,13 @@ class PostsURLTests(TestCase):
         Тестирование на существование страниц с соответсвующим URL
         для приложения posts неавторизованному пользователю.
         """
-        for url in self.templates_url_names:
+        templates_url_names = (
+            self.url_index,
+            self.url_group_list,
+            self.url_profile,
+            self.url_posts,
+        )
+        for url in templates_url_names:
             with self.subTest(url=url):
                 response = self.guest_client.get(url)
                 self.assertEqual(
@@ -64,10 +61,16 @@ class PostsURLTests(TestCase):
         Тестирование на существование страниц с соответсвующим URL
         для приложения posts авторизованному пользователю.
         """
-        self.templates_url_names += (self.url_post_edit,)
-        self.templates_url_names += (self.url_post_create,)
+        templates_url_names = (
+            self.url_index,
+            self.url_group_list,
+            self.url_profile,
+            self.url_posts,
+            self.url_post_edit,
+            self.url_post_create,
+        )
 
-        for urls in self.templates_url_names:
+        for urls in templates_url_names:
             with self.subTest(urls=urls):
                 response = self.authorized_client.get(urls)
                 self.assertEqual(response.status_code, HTTPStatus.OK)

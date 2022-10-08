@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, Client
 
@@ -17,6 +19,10 @@ class UsersURLTests(TestCase):
         self.authorized_client.force_login(UsersURLTests.user)
 
     def test_users_url_exists_for_guest_client(self):
+        """
+        Возможность незарегистрированного пользователя
+        посещать страницы.
+        """
         templates_url_names = [
             '/auth/signup/',
             '/auth/login/',
@@ -27,9 +33,13 @@ class UsersURLTests(TestCase):
         for urls in templates_url_names:
             with self.subTest(urls=urls):
                 response = self.guest_client.get(urls)
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_users_url_exists_for_user_client(self):
+        """
+        Возможность зарегистрированного пользователя
+        посещать страницы смены пароля и выхода из аккаунта.
+        """
         templates_url_names = [
             '/auth/password_change/',
             '/auth/password_change/done/',
@@ -38,9 +48,13 @@ class UsersURLTests(TestCase):
         for urls in templates_url_names:
             with self.subTest(urls=urls):
                 response = self.authorized_client.get(urls)
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_users_url_redirect_for_guest(self):
+        """
+        Перенаправление незарегистрированного пользователя
+        со страницы смены пароля.
+        """
         redirect_url = '/auth/login/'
         templates_url_names = {
             '/auth/password_change/': redirect_url,
@@ -55,6 +69,10 @@ class UsersURLTests(TestCase):
                 self.assertRedirects(response, f'{redir}?next={in_put_url}')
 
     def test_urls_uses_correct_template(self):
+        """
+        Тестирование на использование корректных
+        шаблонов для соответсвующих URL.
+        """
         templates_url_names = {
             '/auth/signup/': 'users/signup.html',
             '/auth/login/': 'users/login.html',

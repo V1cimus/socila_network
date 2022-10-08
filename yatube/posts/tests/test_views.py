@@ -26,9 +26,10 @@ class PostsPagesTemplatesTests(TestCase):
             slug='test-slug',
             description='Тестовое описание',
         )
-        cache.clear()
+        cls.post_index = 'posts:index'
 
     def setUp(self):
+        cache.clear()
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(
@@ -39,16 +40,13 @@ class PostsPagesTemplatesTests(TestCase):
             text='Тестовый пост',
         )
 
-    def tearDown(self):
-        cache.clear()
-
     def test_pages_uses_correct_template(self):
         """
         Тестирование на существование
         соответсвующим URL с HTML Шаблонами.
         """
         templates_page_names = {
-            reverse('posts:index'): 'posts/index.html',
+            reverse(self.post_index): 'posts/index.html',
             reverse('posts:group_list', kwargs={'slug': self.group.slug}):
             ('posts/group_list.html'),
             reverse('posts:profile', kwargs={'username': self.user.username}):
@@ -69,16 +67,18 @@ class PostsPagesTemplatesTests(TestCase):
 
     def test_cache_index_page(self):
         """Тестирование на обновление кэша."""
-        response = self.guest_client.get(reverse('posts:index'))
+        response = self.guest_client.get(reverse(self.post_index))
 
         self.post.delete()
 
-        response_after_del_post = self.guest_client.get(reverse('posts:index'))
+        response_after_del_post = self.guest_client.get(
+            reverse(self.post_index)
+        )
 
         cache.clear()
 
         response_after_cache_clear = self.guest_client.get(
-            reverse('posts:index')
+            reverse(self.post_index)
         )
 
         self.assertEqual(response_after_del_post.content, response.content)
@@ -89,6 +89,11 @@ class PostsPagesTemplatesTests(TestCase):
 
 
 class PostsPagesContextTests(TestCase):
+    POSTS_CREATE_COUNT = 11
+    POSTS_INDEX_COUNT_SECOND_PG = 2
+    POSTS_GROUP_LIST_COUNT_SECOND_PG = 1
+    POSTS_PROFILE_COUNT_SECOND_PG = 1
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -104,7 +109,7 @@ class PostsPagesContextTests(TestCase):
             slug='test-slug-2',
             description='Тестовое описание второй группы',
         )
-        for iteration in range(11):
+        for iteration in range(PostsPagesContextTests.POSTS_CREATE_COUNT):
             Post.objects.create(
                 author=cls.user,
                 text=f'Тестовый пост {iteration}',
@@ -122,12 +127,11 @@ class PostsPagesContextTests(TestCase):
         cls.post_detail = 'posts:post_detail'
         cls.post_edit = 'posts:post_edit'
         cls.create_post = 'posts:create_post'
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
+        cls.follow_index = 'posts:follow_index'
+        cls.profile_follow = 'posts:profile_follow'
 
     def setUp(self):
+        cache.clear()
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(PostsPagesContextTests.user)
@@ -198,8 +202,9 @@ class PostsPagesContextTests(TestCase):
 
     def test_posts_edit_post_show_correct_context(self):
         """Тестирование корректного получения контекста в post_edit."""
+        post = Post.objects.get(pk=1)
         response = self.authorized_client.get(
-            reverse(self.post_edit, kwargs={'post_id': '1'})
+            reverse(self.post_edit, kwargs={'post_id': post.pk})
         )
         is_edit = True
 
@@ -234,12 +239,16 @@ class PostsPagesContextTests(TestCase):
     def test_second_page_contains_three_records(self):
         """Проверка отображения постов на второй странице."""
         field_verboses = {
-            reverse(self.index): 2,
+            reverse(
+                self.index
+            ): PostsPagesContextTests.POSTS_INDEX_COUNT_SECOND_PG,
             reverse(
                 self.group_list,
                 kwargs={'slug': self.group_for_paginator.slug}
-            ): 1,
-            reverse(self.profile, kwargs={'username': self.user.username}): 1,
+            ): PostsPagesContextTests.POSTS_GROUP_LIST_COUNT_SECOND_PG,
+            reverse(
+                self.profile, kwargs={'username': self.user.username}
+            ): PostsPagesContextTests.POSTS_PROFILE_COUNT_SECOND_PG,
         }
 
         for field, value in field_verboses.items():
@@ -344,24 +353,17 @@ class PostsPagesContextTests(TestCase):
         self.assertEqual(len(response_profile.context.get(self.page_obj)),
                          post_count_profile + 1)
 
-    def test_follow_unfollow_author(self):
+    def test_follow_author(self):
         """
         Тестирование возможности
-        подписаться/отписаться на/от автора.
+        подписаться на автора.
         """
         response_follow = self.authorized_client.post(
-            reverse('posts:profile_follow',
+            reverse(self.profile_follow,
                     kwargs={'username': self.user_for_second_auth.username}),
         )
         response_after_follow = self.authorized_client.get(
-            reverse('posts:follow_index',),
-        )
-        response_unfollow = self.authorized_client.post(
-            reverse('posts:profile_unfollow',
-                    kwargs={'username': self.user_for_second_auth.username}),
-        )
-        response_after_unfollow = self.authorized_client.get(
-            reverse('posts:follow_index',),
+            reverse(self.follow_index),
         )
 
         self.assertTrue(
@@ -369,14 +371,32 @@ class PostsPagesContextTests(TestCase):
         )
         self.assertRedirects(
             response_follow,
-            reverse('posts:follow_index')
+            reverse(self.follow_index)
         )
+
+    def test_unfollow_author(self):
+        """
+        Тестирование возможности
+        отписаться от автора.
+        """
+        self.authorized_client.post(
+            reverse(self.profile_follow,
+                    kwargs={'username': self.user_for_second_auth.username}),
+        )
+        response_unfollow = self.authorized_client.post(
+            reverse('posts:profile_unfollow',
+                    kwargs={'username': self.user_for_second_auth.username}),
+        )
+        response_after_unfollow = self.authorized_client.get(
+            reverse(self.follow_index),
+        )
+
         self.assertFalse(
             response_after_unfollow.context.get(self.page_obj),
         )
         self.assertRedirects(
             response_unfollow,
-            reverse('posts:follow_index')
+            reverse(self.follow_index)
         )
 
     def test_correct_context_after_follow_author(self):
@@ -394,14 +414,14 @@ class PostsPagesContextTests(TestCase):
         )
 
         response_follow_first = self.authorized_client.post(
-            reverse('posts:profile_follow',
+            reverse(self.profile_follow,
                     kwargs={'username': self.user_for_second_auth.username}),
         )
         response_after_follow = self.authorized_client.get(
-            reverse('posts:follow_index',),
+            reverse(self.follow_index),
         )
         response_unfollow_user = self.authorized_second_client.get(
-            reverse('posts:follow_index',),
+            reverse(self.follow_index),
         )
         self.assertEqual(
             [*response_after_follow.context.get(self.page_obj)],
@@ -409,7 +429,7 @@ class PostsPagesContextTests(TestCase):
         )
         self.assertRedirects(
             response_follow_first,
-            reverse('posts:follow_index')
+            reverse(self.follow_index)
         )
         self.assertFalse(
             response_unfollow_user.context.get(self.page_obj),
@@ -449,8 +469,8 @@ class PostsPagesImgContextTests(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        super().tearDownClass()
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
 
     def setUp(self):
         self.guest_client = Client()

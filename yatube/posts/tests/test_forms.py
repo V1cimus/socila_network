@@ -7,7 +7,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.conf import settings
 
-from posts.models import Post, Group
+from posts.models import Post, Group, Comment
 
 
 User = get_user_model()
@@ -30,11 +30,12 @@ class PostCreateFormTest(TestCase):
             text='Тестовый пост',
             group=cls.group,
         )
+        cls.create_post = 'posts:create_post'
 
     @classmethod
     def tearDownClass(cls):
-        super().tearDownClass()
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
 
     def setUp(self):
         self.guest_client = Client()
@@ -66,7 +67,7 @@ class PostCreateFormTest(TestCase):
         }
 
         response = self.authorized_client.post(
-            reverse('posts:create_post'),
+            reverse(self.create_post),
             data=form_data,
         )
 
@@ -89,6 +90,7 @@ class PostCreateFormTest(TestCase):
         Тестирование на возможность
         редактировать пост со всеми параметрами.
         """
+        post = Post.objects.get(pk=1)
         post_count = Post.objects.count()
         form_data = {
             'text': 'Измененный тестовый текст',
@@ -96,14 +98,14 @@ class PostCreateFormTest(TestCase):
         }
 
         response = self.authorized_client.post(
-            reverse('posts:post_edit', kwargs={'post_id': '1'}),
+            reverse('posts:post_edit', kwargs={'post_id': post.id}),
             data=form_data,
         )
 
         self.assertEqual(Post.objects.count(), post_count)
         self.assertRedirects(
             response,
-            reverse('posts:post_detail', kwargs={'post_id': '1'})
+            reverse('posts:post_detail', kwargs={'post_id': post.id})
         )
         self.assertTrue(
             Post.objects.filter(
@@ -112,6 +114,24 @@ class PostCreateFormTest(TestCase):
                 group=self.group,
             ).exists()
         )
+
+    def test_post_create_nonaut_user(self):
+        """
+        Тестирование на возможность
+        создать пост неавторизованному пользователю.
+        """
+        post_count = Post.objects.count()
+        form_data = {
+            'text': 'Тестовый текст',
+            'group': self.group.id,
+        }
+
+        self.guest_client.post(
+            reverse(self.create_post),
+            data=form_data,
+        )
+
+        self.assertEqual(Post.objects.count(), post_count)
 
 
 class CommentCreateFormTest(TestCase):
@@ -142,6 +162,7 @@ class CommentCreateFormTest(TestCase):
         Тестирование на отсутвие возможности оставлять
         комментарии неавторизованым пользователям.
         """
+        comment_count = Comment.objects.filter(post__pk=1).count()
         form_data = {
             'text': 'Тестовый комментрарий',
         }
@@ -156,6 +177,10 @@ class CommentCreateFormTest(TestCase):
             follow=True,
         )
 
+        self.assertEqual(
+            Comment.objects.filter(post__pk=1).count(),
+            comment_count
+        )
         self.assertRedirects(
             response,
             f'{redirect_url}?next={in_put_url}'
@@ -166,6 +191,7 @@ class CommentCreateFormTest(TestCase):
         Тестирование на возможности оставлять
         комментарии авторизованым пользователям.
         """
+        comment_count = Comment.objects.filter(post__pk=1).count()
         form_data = {
             'text': 'Тестовый комментрарий',
         }
@@ -178,16 +204,12 @@ class CommentCreateFormTest(TestCase):
             data=form_data,
             follow=True,
         )
-        response_post = self.authorized_client.post(
-            reverse('posts:post_detail', kwargs={'post_id': self.post.pk}),
-            data=form_data,
-            follow=True,
-        )
 
-        self.assertEqual(
-            response_post.context.get('comments')[0].text,
-            'Тестовый комментрарий')
         self.assertRedirects(
             response,
             reverse('posts:post_detail', kwargs={'post_id': self.post.pk})
+        )
+        self.assertEqual(
+            Comment.objects.filter(post__pk=1).count(),
+            comment_count + 1
         )
