@@ -34,7 +34,8 @@ def profile(request, username):
     post_count = post_list.count()
     page_obj = add_paginator_on_page(post_list, request)
     following = False
-    if request.user.is_authenticated and request.user.follower.exists():
+    if (request.user.is_authenticated
+       and request.user.follower.filter(author=author).exists()):
         following = True
     context = {
         'page_obj': page_obj,
@@ -123,8 +124,10 @@ def follow_index(request):
 @login_required
 def profile_follow(request, username):
     author = get_object_or_404(User, username=username)
+    following = Follow.objects.filter(
+        user=request.user).filter(author=author).exists()
     unfollow = True
-    if request.user.follower.exists() and request.user.is_authenticated:
+    if following and request.user.is_authenticated:
         unfollow = False
     if request.user != author and unfollow:
         Follow(user=request.user, author=author).save()
