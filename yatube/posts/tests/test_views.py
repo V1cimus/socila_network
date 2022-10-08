@@ -196,7 +196,7 @@ class PostsPagesContextTests(TestCase):
         ))
 
         self.assertEqual(response.context.get('post_count'), post_count)
-        self.assertEqual(response.context.get('post'), (post),
+        self.assertEqual(response.context.get('post'), post,
                          'Пост передаваемый в post_detail'
                          'не соответсвует ожидаемому')
 

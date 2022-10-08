@@ -191,7 +191,7 @@ class CommentCreateFormTest(TestCase):
         Тестирование на возможности оставлять
         комментарии авторизованым пользователям.
         """
-        comment_count = Comment.objects.filter(post__pk=1).count()
+        comment_count = self.post.comments.all().count()
         form_data = {
             'text': 'Тестовый комментрарий',
         }
@@ -210,6 +210,6 @@ class CommentCreateFormTest(TestCase):
             reverse('posts:post_detail', kwargs={'post_id': self.post.pk})
         )
         self.assertEqual(
-            Comment.objects.filter(post__pk=1).count(),
+            self.post.comments.all().count(),
             comment_count + 1
         )
